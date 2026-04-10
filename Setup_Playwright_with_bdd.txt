@@ -1,0 +1,237 @@
+1. Setup instructions for Playwright with TypeScript with an option - playwright-bdd
+ 
+ 2. Project Setup
+Step 1: Initialize the Project
+mkdir playwright-bdd-login
+cd playwright-bdd-login
+npm init -y
+
+Step 2: Install Dependencies
+npm install -D @playwright/test playwright-bdd typescript ts-node @types/node
+npx playwright install
+
+Step 3: Initialize TypeScript Configuration
+npx tsc --init
+
+Update tsconfig.json:
+
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "types": ["node", "@playwright/test"],
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "dist"
+  },
+  "include": ["tests", "steps", "pages", "playwright.config.ts"]
+}
+✅ 3. Project Structure
+playwright-bdd-login/
+│
+├── features/
+│   └── login.feature
+├── steps/
+│   └── login.steps.ts
+├── pages/
+│   └── LoginPage.ts
+├── tests/
+│   └── bdd/
+├── playwright.config.ts
+├── tsconfig.json
+└── package.json
+✅ 4. Playwright Configuration
+
+Create playwright.config.ts:
+
+import { defineConfig } from '@playwright/test';
+import { defineBddConfig } from 'playwright-bdd';
+
+const bddConfig = defineBddConfig({
+  features: 'features/**/*.feature',
+  steps: 'steps/**/*.ts',
+});
+
+export default defineConfig({
+  testDir: bddConfig.testDir,
+  timeout: 30 * 1000,
+  use: {
+    browserName: 'chromium',
+    headless: true,
+    baseURL: 'https://example.com', // Replace with your application URL
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    trace: 'retain-on-failure',
+  },
+  reporter: [['list'], ['html', { open: 'never' }]],
+});
+
+✅ 5. Feature File (Gherkin)
+
+Create features/login.feature:
+
+Feature: Login Functionality
+
+  As a registered user
+  I want to log into the application
+  So that I can access my account
+
+  Scenario: Successful login with valid credentials
+    Given the user navigates to the login page
+    When the user enters username "testuser" and password "password123"
+    And clicks on the login button
+    Then the user should be redirected to the dashboard
+
+✅ 6. Page Object Model
+
+Create pages/LoginPage.ts:
+
+import { Page, expect } from '@playwright/test';
+
+export class LoginPage {
+  constructor(private page: Page) {}
+
+  // Locators
+  usernameInput = this.page.locator('#username');
+  passwordInput = this.page.locator('#password');
+  loginButton = this.page.locator('#login');
+  dashboardHeader = this.page.locator('h1:has-text("Dashboard")');
+
+  // Actions
+  async navigate() {
+    await this.page.goto('/login');
+  }
+
+  async login(username: string, password: string) {
+    await this.usernameInput.fill(username);
+    await this.passwordInput.fill(password);
+    await this.loginButton.click();
+  }
+
+  async verifyDashboard() {
+    await expect(this.dashboardHeader).toBeVisible();
+  }
+}
+
+🔁 Note: Update the locators (#username, #password, #login) according to your application's DOM.
+
+✅ 7. Step Definitions
+
+Create steps/login.steps.ts:
+
+import { createBdd } from 'playwright-bdd';
+import { test, expect } from '@playwright/test';
+import { LoginPage } from '../pages/LoginPage';
+
+const { Given, When, Then } = createBdd(test);
+
+let loginPage: LoginPage;
+
+Given('the user navigates to the login page', async ({ page }) => {
+  loginPage = new LoginPage(page);
+  await loginPage.navigate();
+});
+
+When(
+  'the user enters username {string} and password {string}',
+  async ({}, username: string, password: string) => {
+    await loginPage.login(username, password);
+  }
+);
+
+When('clicks on the login button', async () => {
+  // The click is already handled in the login method.
+});
+
+Then('the user should be redirected to the dashboard', async () => {
+  await loginPage.verifyDashboard();
+});
+✅ 8. Add NPM Scripts
+
+Update package.json:
+
+{
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "report": "playwright show-report"
+  }
+}
+✅ 9. Generate Tests from Feature Files
+
+Before running the tests, generate Playwright test files:
+
+npx bddgen
+
+(If the above command doesn’t work, use:)
+
+npx playwright-bdd
+
+Note: the command - npx playwright-bdd should be run as and when we add new test cases
+✅ 10. Run the Tests
+npm test
+Run in Headed Mode
+npm run test:headed
+View HTML Report
+npm run report
+
+
+
+What should be done while adding new test cases
+===============================================
+
+
+1. Add scenario in the login.feature file as follows
+
+Scenario: Unsuccessful login with invalid credentials
+    Given the user navigates to the login page
+    When the user enters username "invalid" and password "wrong"
+    And clicks on the login button
+    Then an error message "Invalid username or password" should be displayed
+	
+2. Add the required methods in the login.steps.ts file as follows
+
+Then('an error message {string} should be displayed', async () => {    
+  await loginPage.verifyInvalidUsernamePasswordMessage();   
+});
+
+Note: 
+
+Verify and make sure that the below gets matches in the feature file and steps file
+
+feature ==> Then an error message "Invalid username or password" should be displayed
+
+steps ==> 
+Then('an error message {string} should be displayed', async () => {    
+  await loginPage.verifyInvalidUsernamePasswordMessage();   
+});
+
+3. Add method - verifyInvalidUsernamePasswordMessage() in the POM file. ie. LoginPage.ts as below
+
+ async verifyInvalidUsernamePasswordMessage(){
+    await expect(this.invalidUsernamePasswordMessage).toBeVisible();
+    let errorMessage = await this.invalidUsernamePasswordMessage.textContent();
+    expect(errorMessage).toContain('Incorrect username/password');
+    console.log("Error Message: " + errorMessage);
+  }
+  
+4. Go to the terminal and run the below command to generate to prepare the script for running the test cases
+
+a
+
+5. This will add neccessary script in the login.feature.spec.js file as follow. 
+
+  test('Unsuccessful login with invalid credentials', async ({ Given, When, Then, And, page }) => { 
+    await Given('the user navigates to the login page', null, { page }); 
+    await When('the user enters username "invalid" and password "wrong"'); 
+    await And('clicks on the login button'); 
+    await Then('an error message "Invalid username or password" should be displayed'); 
+  });
+  
+6. Then we can debug the newly added test case to validate the output. 
+
+
